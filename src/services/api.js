@@ -19,16 +19,15 @@ class ApiService {
         return timeMap[expiryTime] || 1440; // default to 24 hours
     }
 
-    // Upload file to OneTap backend
+    // Upload file to the backend
     async uploadFile(file, expiryTime = '24h') {
         try {
             const formData = new FormData();
             formData.append('file', file);
 
             const expiryMinutes = this.convertExpiryToMinutes(expiryTime);
-            formData.append('expiryMinutes', expiryMinutes);
-
-            const response = await fetch(`${this.baseURL}/files/upload`, {
+            
+            const response = await fetch(`${this.baseURL}/files/upload?expiryMinutes=${expiryMinutes}`, {
                 method: 'POST',
                 body: formData,
             });
@@ -38,11 +37,14 @@ class ApiService {
                 throw new Error(`Upload failed: ${errorText}`);
             }
 
-            const link = await response.text();
+            // Expecting JSON response: { "fileId": "...", "viewUrl": "..." }
+            const link = await response.text(); 
+            const fileId = link.split('/').pop();
+
             return {
                 success: true,
-                link: link,
-                fileId: link.split('/').pop() // Extract file ID from the link
+                link, 
+                fileId
             };
         } catch (error) {
             console.error('Upload error:', error);
@@ -53,7 +55,8 @@ class ApiService {
         }
     }
 
-    // Download file from OneTap backend
+
+    // Download file from the backend
     async downloadFile(fileId) {
         try {
             const response = await fetch(`${this.baseURL}/files/view/${fileId}`, {
@@ -61,25 +64,19 @@ class ApiService {
             });
 
             if (!response.ok) {
+                 if (response.status === 404) {
+                    throw new Error('File not found. It may have expired or already been downloaded.');
+                }
                 const errorText = await response.text();
                 throw new Error(`Download failed: ${errorText}`);
             }
-
-            // Get the filename from Content-Disposition header if available
-            const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = 'downloaded-file';
-            if (contentDisposition) {
-                const filenameMatch = contentDisposition.match(/filename="(.+)"/);
-                if (filenameMatch) {
-                    filename = filenameMatch[1];
-                }
-            }
-
+            
+            // Filename is no longer read from Content-Disposition.
+            // It will be passed via the URL hash.
             const blob = await response.blob();
             return {
                 success: true,
                 blob: blob,
-                filename: filename
             };
         } catch (error) {
             console.error('Download error:', error);
@@ -90,7 +87,7 @@ class ApiService {
         }
     }
 
-    // Helper method to trigger file download
+    // Helper method to trigger file download in the browser
     downloadFileFromBlob(blob, filename) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -102,5 +99,5 @@ class ApiService {
         document.body.removeChild(a);
     }
 }
-
-export default new ApiService();
+const apiService = new ApiService();
+export default apiService

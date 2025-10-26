@@ -449,7 +449,6 @@ body {
 
 .link-text {
   word-break: break-all;
-  margin-bottom: 1rem;
   font-family: monospace;
   background: rgba(0, 0, 0, 0.1);
   padding: 0.5rem;

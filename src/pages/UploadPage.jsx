@@ -91,7 +91,8 @@ const UploadPage = () => {
 
             if (result.success) {
                 // 3. Construct the frontend URL with the decryption key in the hash
-                const frontendUrl = `${window.location.origin}/view/${result.fileId}#key=${base64Key}`;
+                const encodedFilename = encodeURIComponent(file.name);
+                const frontendUrl = `${window.location.origin}/view/${result.fileId}#key=${base64Key}&filename=${encodedFilename}`;
                 
                 setUploadedLinks(prev => [...prev, {
                     id: file.id,
@@ -224,9 +225,9 @@ const UploadPage = () => {
                                 >
                                     <div className="link-details">
                                         <p className="link-filename">{fileName}</p>
-                                        <div className="link-input-wrapper">
+                                        <div className="flex flex gap-3 items-center">
                                             <input type="text" readOnly value={link} className="link-text" />
-                                            <button className="copy-button" onClick={() => copyToClipboard(link, id)}>
+                                            <button className="copy-button flex gap-3 justify-center items-center" onClick={() => copyToClipboard(link, id)}>
                                                 {copiedLink === id ? <ShieldCheck size={16} /> : <Copy size={16} />}
                                                 {copiedLink === id ? 'Copied!' : 'Copy'}
                                             </button>

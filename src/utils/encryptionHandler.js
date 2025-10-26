@@ -11,8 +11,15 @@ export const arrayBufferToBase64 = (buffer) => {
         .replace(/=/g, '');
 };
 
-export const base64ToArrayBuffer = (base64) => {
-    const binary_string = window.atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+/**
+ * Converts a URL-safe Base64 string back to an ArrayBuffer.
+ * @param {string} base64 The Base64 string to convert.
+ * @returns {ArrayBuffer} The resulting ArrayBuffer.
+ */
+const base64ToArrayBuffer = (base64) => {
+    // Replace URL-safe characters with standard Base64 characters
+    const standardBase64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+    const binary_string = window.atob(standardBase64);
     const len = binary_string.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
@@ -51,6 +58,12 @@ export const encryptFile = async (file) => {
     };
 };
 
+/**
+ * Decrypts data using a given key.
+ * @param {ArrayBuffer} encryptedData The data to decrypt (IV prepended).
+ * @param {string} base64Key The encryption key in Base64 format.
+ * @returns {Promise<ArrayBuffer>} The decrypted file data as an ArrayBuffer.
+ */
 export const decryptFile = async (encryptedData, base64Key) => {
     const keyData = base64ToArrayBuffer(base64Key);
     const key = await window.crypto.subtle.importKey(
@@ -61,15 +74,16 @@ export const decryptFile = async (encryptedData, base64Key) => {
         ['decrypt']
     );
 
-    // IV is the first 12 bytes
+    // The IV is the first 12 bytes of the encrypted data.
     const iv = encryptedData.slice(0, 12);
     const ciphertext = encryptedData.slice(12);
 
+    // Decrypt the ciphertext.
     const decryptedData = await window.crypto.subtle.decrypt(
         { name: 'AES-GCM', iv: iv },
         key,
         ciphertext
     );
 
-    return new Blob([decryptedData]);
+    return decryptedData;
 };
