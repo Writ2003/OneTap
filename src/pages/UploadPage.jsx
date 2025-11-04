@@ -3,16 +3,19 @@ import { motion } from 'framer-motion';
 import { Upload, Clock, Copy, AlertCircle, File, X, ShieldCheck } from 'lucide-react';
 import apiService from '../services/api';
 import { encryptFile } from '../utils/encryptionHandler';
+import { ToastContainer, toast } from 'react-toastify';
 
 const UploadPage = () => {
     const [files, setFiles] = useState([]);
-    const [expiryTime, setExpiryTime] = useState('24h');
+    const [expiryValue, setExpiryValue] = useState(1);
+    const [expiryUnit, setExpiryUnit] = useState('days');
     const [isUploading, setIsUploading] = useState(false);
     const [uploadedLinks, setUploadedLinks] = useState([]);
     const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState('');
     const [copiedLink, setCopiedLink] = useState(null);
     const fileInputRef = useRef(null);
+
 
     const formatFileSize = (bytes) => {
         if (bytes === 0) return '0 Bytes';
@@ -22,31 +25,47 @@ const UploadPage = () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    /**
+     * UPDATED: Validates file size and MIME type.
+     * Only allows types previewable in the browser.
+     */
     const validateFile = (file) => {
         const maxSize = 100 * 1024 * 1024; // 100MB
+
         if (file.size > maxSize) {
-            setError('File size must be less than 100MB');
+            showToast(`File is too large. Max size is 100MB.`, 'error');
             return false;
         }
-        setError('');
+
+        const fileType = file.type;
+        const isImage = fileType.startsWith('image/');
+        const isPdf = fileType === 'application/pdf';
+        const isText = fileType.startsWith('text/');
+
+        // Only allow files that can be previewed in ViewPage.jsx
+        if (!isImage && !isPdf && !isText) {
+            toast.error(`File type (${fileType || 'unknown'}) is not supported for in-browser preview.`);
+            return false;
+        }
+
         return true;
     };
 
     const handleFiles = useCallback((fileList) => {
         const newFiles = [];
-        Array.from(fileList).forEach(file => {
-            if (validateFile(file)) {
-                const uploadedFile = {
-                    file,
-                    id: Math.random().toString(36).substr(2, 9),
-                    name: file.name,
-                    size: formatFileSize(file.size),
-                    type: file.type
-                };
-                newFiles.push(uploadedFile);
-            }
-        });
-        setFiles(prev => [...prev, ...newFiles]);
+        // Only take the first file from the list
+        const file = fileList[0];
+        
+        if (file && validateFile(file)) {
+            newFiles.push({
+                file,
+                id: Math.random().toString(36).substr(2, 9),
+                name: file.name,
+                size: formatFileSize(file.size),
+            });
+        }
+        // Replace the existing file list with the new single file
+        setFiles(newFiles);
     }, []);
 
     const handleDrag = useCallback((e) => {
@@ -78,49 +97,83 @@ const UploadPage = () => {
         setFiles(prev => prev.filter(file => file.id !== id));
     };
 
-    const generateLink = async (file) => {
+    const generateLink = async () => {
+        if (files.length === 0) return; // No file to upload
+        
+        const fileToUpload = files[0]; // Get the single file
+        
         setIsUploading(true);
         setError('');
 
+        const toastId = toast.loading("Checking storage..."); // Start loading toast
         try {
-            // 1. Encrypt the file in the browser using the handler
-            const { encryptedBlob, base64Key } = await encryptFile(file.file);
 
-            // 2. Upload the encrypted blob using your apiService
-            const result = await apiService.uploadFile(encryptedBlob, expiryTime);
+            // --- 1. NEW: PRE-FLIGHT CHECK ---
+            const usage = await apiService.getRedisUsage();
+
+            if (!usage.success) {
+                throw new Error(`Storage check failed: ${usage.error}`);
+            }
+
+            if (fileToUpload.file.size > usage.available_bytes) {
+                const errorMessage = `Not enough storage for ${fileToUpload.name}. Required: ${formatFileSize(fileToUpload.file.size)}, Available: ${formatFileSize(usage.available_bytes)}`;
+                toast.update(toastId, { render: errorMessage, type: "error", isLoading: false, autoClose: 5000 });
+                removeFile(fileToUpload.id); // Remove from list
+                setIsUploading(false); // Stop loading
+                return; // Stop this file's upload
+            }
+
+            // 2. Encrypt the file in the browser using the handler
+           toast.update(toastId, { render: `Encrypting ${fileToUpload.name}...` });
+            const { encryptedBlob, base64Key } = await encryptFile(fileToUpload.file);
+
+            // 3. Upload the encrypted blob using your apiService
+            toast.update(toastId, { render: `Uploading ${fileToUpload.name}...` });
+            const result = await apiService.uploadFile(encryptedBlob, expiryValue, expiryUnit);
 
             if (result.success) {
-                // 3. Construct the frontend URL with the decryption key in the hash
-                const encodedFilename = encodeURIComponent(file.name);
+                // 4. Construct the frontend URL with the decryption key in the hash
+                const encodedFilename = encodeURIComponent(fileToUpload.name);
                 const frontendUrl = `${window.location.origin}/view/${result.fileId}#key=${base64Key}&filename=${encodedFilename}`;
+                console.log("Frontend url: ", frontendUrl);
                 
                 setUploadedLinks(prev => [...prev, {
-                    id: file.id,
+                    id: fileToUpload.id,
                     link: frontendUrl,
-                    fileName: file.name
+                    fileName: fileToUpload.name
                 }]);
-                
-                // Remove file from upload list after successful upload
-                setFiles(prev => prev.filter(f => f.id !== file.id));
+
+                toast.update(toastId, { render: `Uploaded ${fileToUpload.name}!`, type: "success", isLoading: false, autoClose: 5000 });
+                setFiles([]); // Clear the file list
             } else {
-                setError(`Failed to upload ${file.name}: ${result.error}`);
+                setError(`Failed to upload ${fileToUpload.name}: ${result.error}`);
             }
         } catch (err) {
             console.error(err);
-            setError(`Failed to upload ${file.name}. Encryption failed or network error.`);
+            setError(`Failed to upload ${fileToUpload.name}. Encryption failed or network error.`);
+             toast.update(toastId, { render: `Failed to upload ${fileToUpload.name}.`, type: "error", isLoading: false, autoClose: 5000 });
         } finally {
             setIsUploading(false);
         }
     };
 
-    const copyToClipboard = async (link, id) => {
+    const copyToClipboard = (link, fileId) => {
+        // Use a temporary textarea for broader compatibility
+        const textArea = document.createElement('textarea');
+        textArea.value = link;
+        document.body.appendChild(textArea);
+        textArea.select();
         try {
-            await navigator.clipboard.writeText(link);
-            setCopiedLink(id);
-            setTimeout(() => setCopiedLink(null), 2000); // Reset after 2 seconds
+            document.execCommand('copy');
+            setUploadedLinks(prev => prev.map(l => l.id === fileId ? { ...l, copied: true } : l));
+            setTimeout(() => {
+                setUploadedLinks(prev => prev.map(l => l.id === fileId ? { ...l, copied: false } : l));
+            }, 2000);
         } catch (err) {
-            console.error('Failed to copy link');
+            console.error('Failed to copy', err);
+            toast.error('Failed to copy link.');
         }
+        document.body.removeChild(textArea);
     };
 
     const expiryOptions = [
@@ -132,6 +185,19 @@ const UploadPage = () => {
 
     return (
         <div className="upload-page">
+            {/* --- Toast Container --- */}
+            <ToastContainer
+                position="top-right"
+                autoClose={5000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="dark"
+            />
             <div className="upload-container">
                 <motion.div
                     className="upload-card"
@@ -176,34 +242,45 @@ const UploadPage = () => {
                                     key={file.id} className="file-item"
                                     initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
                                 >
-                                    <div className="file-details">
+                                    <div className="file-details flex gap-3 items-center">
                                         <File size={20} />
-                                        <div>
+                                        <div className='flex gap-3'>
                                             <p className="file-name">{file.name}</p>
                                             <p className="file-size">{file.size}</p>
                                         </div>
+                                        <button onClick={() => removeFile(file.id)} className="remove-file-btn">
+                                            <X size={20} />
+                                        </button>
                                     </div>
-                                    <button onClick={() => removeFile(file.id)} className="remove-file-btn">
-                                        <X size={20} />
-                                    </button>
+                                    
                                 </motion.div>
                             ))}
                         </div>
                     )}
 
-                    <div className="expiry-section">
-                        <label className="expiry-label">
-                            <Clock size={16} /> Link Expiry Time
-                        </label>
-                        <select
-                            className="expiry-select" value={expiryTime}
-                            onChange={(e) => setExpiryTime(e.target.value)}
-                        >
-                            {expiryOptions.map(option => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                        </select>
-                    </div>
+                    {/* Expiry Time & Upload Button */}
+                    {files.length > 0 && (
+                        <div className="my-3">
+                            <div className="flex gap-3 items-center">
+                                <div className='flex text-[16px] gap-1 items-center mb-1'>
+                                    <Clock size={16} />
+                                    <p>Link Expires in: </p>
+                                </div>
+                                <input
+                                    type="text"
+                                    value={expiryValue}
+                                    onChange={(e) => setExpiryValue(e.target.value)}
+                                    className="rounded-md text-center w-10 p-0.5 outline-blue-300 "
+                                    min="1"
+                                />
+                                <select value={expiryUnit} onChange={(e) => setExpiryUnit(e.target.value)} className="rounded-md p-0.5 outline-blue-300">
+                                    <option value="minutes">Minutes</option>
+                                    <option value="hours">Hours</option>
+                                    <option value="days">Days</option>
+                                </select>
+                            </div>
+                        </div>
+                    )}
 
                     {files.length > 0 && (
                         <button
@@ -225,7 +302,7 @@ const UploadPage = () => {
                                 >
                                     <div className="link-details">
                                         <p className="link-filename">{fileName}</p>
-                                        <div className="flex flex gap-3 items-center">
+                                        <div className="flex gap-3 items-center">
                                             <input type="text" readOnly value={link} className="link-text" />
                                             <button className="copy-button flex gap-3 justify-center items-center" onClick={() => copyToClipboard(link, id)}>
                                                 {copiedLink === id ? <ShieldCheck size={16} /> : <Copy size={16} />}

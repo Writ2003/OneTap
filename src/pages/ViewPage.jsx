@@ -124,9 +124,6 @@ const ViewPage = () => {
                             <File size={20} />
                             <span className="filename">{decryptedFile.filename}</span>
                             <div className="header-buttons">
-                                <button onClick={() => apiService.downloadFileFromBlob(decryptedFile.blob, decryptedFile.filename)} className="header-button">
-                                    <Download size={16} /> Download
-                                </button>
                                 <button onClick={handleGoBack} className="header-button">
                                     <ArrowLeft size={16} /> Back
                                 </button>
