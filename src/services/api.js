@@ -98,12 +98,23 @@ class ApiService {
                 throw new Error(`Download failed: ${errorText}`);
             }
             
-            // Filename is no longer read from Content-Disposition.
-            // It will be passed via the URL hash.
-            const blob = await response.blob();
+            let expiryTimestamp = null;
+            const relativeSeconds = response.headers.get('X-Expiry-Seconds');
+            console.log("response.headers: ",response.headers)
+            console.log("Expiry time remaining: ",relativeSeconds);
+            if (relativeSeconds) {
+              const msRemaining = parseInt(relativeSeconds, 10) * 1000;
+              expiryTimestamp = Date.now() + msRemaining;
+            }
+        
+            // 4. Get the encrypted file blob
+            const encryptedBlob = await response.blob();
+        
+            // 5. Return a rich object with all the data
             return {
-                success: true,
-                blob: blob,
+              success: true,
+              blob: encryptedBlob,
+              expiryTimestamp: expiryTimestamp // This will be null if header not present
             };
         } catch (error) {
             console.error('Download error:', error);

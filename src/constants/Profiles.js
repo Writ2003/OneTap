@@ -11,9 +11,8 @@ const Profiles = [
         background: "B.Tech IT'26",
         college: "Techno Main Salt Lake",
         socials: {
-            github: 'https://github.com/your-username',
-            linkedin: 'https://linkedin.com/in/your-username',
-            twitter: 'https://twitter.com/your-username',
+            github: 'https://github.com/Encryption-prince',
+            linkedin: 'https://linkedin.com/in/subham-maity-6196aa248',
         }
     },
     {
@@ -25,7 +24,9 @@ const Profiles = [
         background: "B.Tech IT'26",
         college: "Techno Main Salt Lake",
         socials: {
-            linkedin: 'https://linkedin.com/in/your-username',
+            github: 'https://github.com/writ2003',
+            linkedin: 'https://www.linkedin.com/in/supratim-das-31754a221',
+            twitter: 'https://twitter.com/Suprati44206541',
         }
     }
 ];

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import apiService from '../services/api';
 import { decryptFile } from "../utils/encryptionHandler" 
+import { ToastContainer, toast } from 'react-toastify';
 
 const getMimeTypeFromFilename = (filename) => {
     const extension = filename.split('.').pop().toLowerCase();
@@ -45,6 +46,44 @@ const ViewPage = () => {
     const [textContent, setTextContent] = useState('');
 
     useEffect(() => {
+        // Only run if we are viewing a file and that file *has* an expiry time
+        if (status !== 'viewing' || !decryptedFile?.expiryTimestamp) {
+            return; // Do nothing
+        }
+
+        // This function will run when the timer fires
+        const terminateSession = () => {
+            toast.error("Session Expired!");
+            setStatus('error');
+            setError('This secure link has expired. The session has been terminated.');
+            
+            // Clean up the blob URL to prevent memory leaks
+            if (decryptedFile.url) {
+                URL.revokeObjectURL(decryptedFile.url);
+            }
+            setDecryptedFile(null); // Clear the file from state
+        };
+
+        // Calculate time remaining
+        const now = Date.now();
+        const msRemaining = decryptedFile.expiryTimestamp - now;
+
+        if (msRemaining <= 0) {
+            // It's already expired (e.g., user reloaded page), terminate immediately
+            terminateSession();
+        } else {
+            // Set a timer to terminate the session exactly when it expires
+            const timerId = setTimeout(terminateSession, msRemaining);
+
+            // Cleanup function: If the component unmounts, clear the timer
+            return () => clearTimeout(timerId);
+        }
+
+    }, [status, decryptedFile]); // Runs when status or decryptedFile changes
+
+
+
+    useEffect(() => {
         if (status === 'viewing' && decryptedFile?.type.startsWith('text/')) {
             const reader = new FileReader();
             reader.onload = (e) => setTextContent(e.target.result);
@@ -71,12 +110,14 @@ const ViewPage = () => {
             const mimeType = getMimeTypeFromFilename(filename);
             const finalBlob = new Blob([decryptedData], { type: mimeType });
             const finalUrl = URL.createObjectURL(finalBlob);
+            console.log("Expiration Timestamp: ",result.expiryTimestamp);
 
             setDecryptedFile({
                 blob: finalBlob,
                 filename: filename,
                 type: mimeType,
                 url: finalUrl,
+                expiryTimestamp: result.expiryTimestamp
             });
 
             setStatus('viewing');
@@ -189,6 +230,18 @@ const ViewPage = () => {
 
     return (
         <div className="min-h-screen bg-slate-900 text-slate-200 flex items-center justify-center p-4 -mt-[4.3rem] selection:bg-blue-500/30">
+            <ToastContainer
+                position="top-right"
+                autoClose={5000}
+                hideProgressBar={false}
+                newestOnTop
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="dark"
+            />
             <motion.div
                 className={`w-full bg-slate-800/70 backdrop-blur-md rounded-xl mt-[5rem] shadow-2xl border border-slate-700
                     ${status === 'viewing' ? 'max-w-4xl overflow-hidden' : 'max-w-xl'}
