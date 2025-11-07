@@ -9,7 +9,12 @@ const Profiles = [
         profilePic: subham,
         profession: "Student",
         background: "B.Tech IT'26",
-        college: "Techno Main Salt Lake"
+        college: "Techno Main Salt Lake",
+        socials: {
+            github: 'https://github.com/your-username',
+            linkedin: 'https://linkedin.com/in/your-username',
+            twitter: 'https://twitter.com/your-username',
+        }
     },
     {
         name:"Supratim Das",
@@ -18,7 +23,10 @@ const Profiles = [
         profilePic: supratim,
         profession: "Student",
         background: "B.Tech IT'26",
-        college: "Techno Main Salt Lake"
+        college: "Techno Main Salt Lake",
+        socials: {
+            linkedin: 'https://linkedin.com/in/your-username',
+        }
     }
 ];
 

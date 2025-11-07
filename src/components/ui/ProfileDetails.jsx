@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-
+import { Github, Twitter, Linkedin } from "lucide-react";
 // Variants for the details container to orchestrate staggered animations
 const detailsContainerVariants = {
     hidden: { opacity: 0 },
@@ -9,6 +9,23 @@ const detailsContainerVariants = {
 const detailItemVariants = {
     hidden: { y: 20, opacity: 0 },
     visible: { y: 0, opacity: 1 }
+};
+
+
+const SocialIcon = ({ href, icon }) => {
+    if (!href) return null; // <-- This is the optional logic
+
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-500 hover:text-blue-400 transition-colors"
+            aria-label={`Visit profile`}
+        >
+            {icon}
+        </a>
+    );
 };
 
 const ProfileDetails = ({ profile }) => (
@@ -69,6 +86,14 @@ const ProfileDetails = ({ profile }) => (
             <motion.p variants={detailItemVariants} className="text-gray-300 bg-gray-800/50 p-3 rounded-lg"><span className="font-semibold text-gray-400 mr-2">Background:</span> {profile.background}</motion.p>
             <motion.p variants={detailItemVariants} className="text-gray-300 bg-gray-800/50 p-3 rounded-lg"><span className="font-semibold text-gray-400 mr-2">College:</span> {profile.college}</motion.p>
         </motion.div>
+
+
+        {/* Social Icons Section */}
+        <div className="flex items-center gap-5 mt-6">
+            <SocialIcon href={profile.socials.github} icon={<Github size={24} />} />
+            <SocialIcon href={profile.socials.linkedin} icon={<Linkedin size={24} />} />
+            <SocialIcon href={profile.socials.twitter} icon={<Twitter size={24} />} />
+        </div>
     </motion.div>
 );
 

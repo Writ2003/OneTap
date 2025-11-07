@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Download, AlertCircle, File, ArrowLeft, CheckCircle, XCircle, Eye } from 'lucide-react';
+import { 
+    File, 
+    Eye, 
+    ArrowLeft, 
+    XCircle, 
+    Loader2 // A dedicated loader icon
+} from 'lucide-react';
 import apiService from '../services/api';
 import { decryptFile } from "../utils/encryptionHandler" 
 
@@ -55,9 +61,6 @@ const ViewPage = () => {
         try {
             const { key, filename } = getParamsFromHash();
             if (!key) throw new Error('Decryption key is missing from the URL.');
-            if (filename === 'downloaded-file') {
-                 console.warn('Filename not found in URL hash, defaulting to "downloaded-file".');
-            }
 
             const result = await apiService.downloadFile(fileId);
             if (!result.success) throw new Error(result.error);
@@ -91,19 +94,19 @@ const ViewPage = () => {
         const { type, url, filename } = decryptedFile;
 
         if (type.startsWith('image/')) {
-            return <img src={url} alt={filename} className="preview-content-image" />;
+            return <img src={url} alt={filename} className="max-w-full max-h-[75vh] object-contain rounded-md" />;
         }
         if (type === 'application/pdf') {
-            return <embed src={url} type="application/pdf" className="preview-content-embed" />;
+            return <embed src={url} type="application/pdf" className="w-full h-[75vh] border-none rounded-md" />;
         }
         if (type.startsWith('text/')) {
-            return <pre className="preview-content-text">{textContent}</pre>;
+            return <pre className="bg-slate-800 text-slate-300 p-4 rounded-md w-full h-full text-left whitespace-pre-wrap break-words overflow-auto">{textContent}</pre>;
         }
         return (
-            <div className="preview-fallback">
+            <div className="flex flex-col items-center gap-4 text-slate-500 p-10">
                 <File size={60} />
                 <p>Preview is not available for this file type.</p>
-                <span>{filename}</span>
+                <span className="font-medium text-slate-300">{filename}</span>
             </div>
         );
     };
@@ -112,50 +115,70 @@ const ViewPage = () => {
         switch (status) {
             case 'processing':
                 return (
-                    <div className="status-container">
-                        <div className="spinner"></div>
-                        <p>Processing File...</p>
+                    <div className="flex flex-col items-center text-center p-8 md:p-12 min-h-[300px] justify-center">
+                        <Loader2 size={60} className="text-blue-400 animate-spin" />
+                        <p className="text-slate-300 text-lg font-medium mt-6">
+                            Processing File...
+                        </p>
                     </div>
                 );
             case 'viewing':
                 return (
-                    <div className="viewing-container">
-                        <div className="view-header">
-                            <File size={20} />
-                            <span className="filename">{decryptedFile.filename}</span>
-                            <div className="header-buttons">
-                                <button onClick={handleGoBack} className="header-button">
-                                    <ArrowLeft size={16} /> Back
-                                </button>
-                            </div>
+                    <div className="w-full">
+                        <div className="flex items-center gap-3 p-4 bg-slate-900/50 border-b border-slate-700">
+                            <File className="h-5 w-5 text-blue-300 flex-shrink-0" />
+                            <span className="font-medium text-slate-100 truncate mr-auto" title={decryptedFile.filename}>
+                                {decryptedFile.filename}
+                            </span>
+                            <button 
+                                onClick={handleGoBack} 
+                                className="flex items-center gap-1.5 py-1 px-3 rounded-md font-medium text-sm text-slate-200 bg-slate-600 hover:bg-slate-500 transition-colors"
+                            >
+                                <ArrowLeft size={16} /> Back
+                            </button>
                         </div>
-                        <div className="preview-area">{renderPreview()}</div>
+                        <div className="bg-slate-900 p-1 md:p-4 min-h-[60vh] max-h-[80vh] overflow-y-auto flex items-center justify-center">
+                            {renderPreview()}
+                        </div>
                     </div>
                 );
             case 'error':
                  return (
-                    <div className="status-container">
-                        <XCircle size={60} className="error-icon" />
-                        <h2>Action Failed</h2>
-                         <p className="error-message">{error}</p>
-                        <button onClick={handleGoBack} className="back-button">
+                    <div className="flex flex-col items-center text-center p-8 md:p-12">
+                        <XCircle size={60} className="text-red-500 mb-5" />
+                        <h2 className="text-3xl font-bold text-red-400">Action Failed</h2>
+                        <p className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 mt-6 w-full text-center">
+                            {error}
+                        </p>
+                        <button 
+                            onClick={handleGoBack} 
+                            className="w-full sm:w-auto mt-6 bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-6 rounded-lg transition-all duration-300 ease-in-out flex items-center justify-center gap-2"
+                        >
                             <ArrowLeft size={16} /> Back to Home
                         </button>
                     </div>
                 );
-            default: // ready
+            default: // 'ready'
                 return (
-                     <div className="status-container">
-                        <File size={80} style={{ marginBottom: '2rem' }} />
-                        <h1>Secure File Access</h1>
-                        <p className="subtitle">
+                    <div className="flex flex-col items-center text-center p-8 md:p-12">
+                        <File size={60} className="text-blue-400 mb-5" />
+                        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
+                            Secure File Access
+                        </h1>
+                        <p className="text-slate-400 mt-3 mb-8 max-w-md">
                             This is a secure, one-time access link. The file will be decrypted and shown in your browser.
                         </p>
-                        <div className="button-group">
-                            <button onClick={handleProcessFile} className="download-button">
+                        <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                            <button 
+                                className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                                onClick={handleProcessFile}
+                            >
                                 <Eye size={20} /> View File
                             </button>
-                            <button onClick={handleGoBack} className="cancel-button">
+                            <button 
+                                className="w-full sm:w-auto bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 ease-in-out flex items-center justify-center gap-2"
+                                onClick={handleGoBack}
+                            >
                                 <ArrowLeft size={20} /> Cancel
                             </button>
                         </div>
@@ -165,92 +188,19 @@ const ViewPage = () => {
     };
 
     return (
-        <div className="view-page">
-            <div className={`view-container ${status === 'viewing' ? 'viewing-mode' : ''}`}>
-                <motion.div
-                    className="view-card"
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                >
-                   {renderContent()}
-                </motion.div>
-            </div>
-            <style>{`
-                .view-page {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    min-height: 100vh;
-                    background-color: #1a1a2e;
-                    color: white;
-                    font-family: 'Inter', sans-serif;
-                    padding: 1rem 0;
-                }
-                .view-container {
-                    width: 100%;
-                    max-width: 600px;
-                    padding: 1rem;
-                    transition: max-width 0.5s ease;
-                }
-                .view-container.viewing-mode {
-                    max-width: 1000px;
-                }
-                .view-card {
-                    background: #16213e;
-                    border-radius: 20px;
-                    border: 1px solid rgba(255, 255, 255, 0.1);
-                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-                    overflow: hidden;
-                }
-                .status-container { text-align: center; padding: 4rem; }
-                .subtitle { opacity: 0.8; margin-bottom: 2rem; line-height: 1.6; }
-                .button-group { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-                .download-button, .cancel-button, .back-button, .header-button {
-                    border: none; border-radius: 10px; padding: 0.8rem 1.5rem; color: white; cursor: pointer;
-                    font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; transition: all 0.3s ease;
-                }
-                .download-button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-                .download-button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
-                .cancel-button, .back-button, .header-button { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); }
-                .cancel-button:hover, .back-button:hover, .header-button:hover { background: rgba(255, 255, 255, 0.2); }
-                .spinner {
-                    width: 40px; height: 40px; border: 3px solid rgba(255, 255, 255, 0.3);
-                    border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;
-                }
-                .error-icon { color: #ff6b6b; margin-bottom: 1rem; }
-                .error-message {
-                     background: rgba(255, 0, 0, 0.1); border: 1px solid rgba(255, 0, 0, 0.3);
-                     border-radius: 10px; padding: 1rem; margin: 1rem 0 2rem 0; color: #ff6b6b;
-                }
-                .viewing-container {
-                    width: 100%;
-                }
-                .view-header {
-                    display: flex; align-items: center; gap: 1rem; padding: 1rem 1.5rem;
-                    background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                }
-                .filename { font-weight: 600; margin-right: auto; }
-                .header-buttons { display: flex; gap: 0.5rem; }
-                .preview-area {
-                    padding: 1rem; background-color: #0f172a; min-height: 60vh; max-height: 80vh;
-                    display: flex; align-items: center; justify-content: center; overflow-y: auto;
-                }
-                .preview-content-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
-                .preview-content-embed { width: 100%; height: 100%; min-height: 70vh; border: none; }
-                .preview-content-text {
-                    white-space: pre-wrap; word-wrap: break-word; text-align: left;
-                    background-color: #1e293b; color: #cbd5e1; padding: 1.5rem;
-                    border-radius: 8px; width: 100%; height: 100%; overflow: auto;
-                }
-                .preview-fallback {
-                    text-align: center; color: #94a3b8; display: flex; flex-direction: column;
-                    align-items: center; gap: 1rem;
-                }
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
+        <div className="min-h-screen bg-slate-900 text-slate-200 flex items-center justify-center p-4 -mt-[4.3rem] selection:bg-blue-500/30">
+            <motion.div
+                className={`w-full bg-slate-800/70 backdrop-blur-md rounded-xl mt-[5rem] shadow-2xl border border-slate-700
+                    ${status === 'viewing' ? 'max-w-4xl overflow-hidden' : 'max-w-xl'}
+                `}
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
+            >
+                {renderContent()}
+            </motion.div>
+            
+            {/* The entire <style> block is now gone! */}
         </div>
     );
 };

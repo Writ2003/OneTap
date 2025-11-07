@@ -1,9 +1,20 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Clock, Copy, AlertCircle, File, X, ShieldCheck } from 'lucide-react';
 import apiService from '../services/api';
 import { encryptFile } from '../utils/encryptionHandler';
 import { ToastContainer, toast } from 'react-toastify';
+
+import { 
+    Upload, 
+    File, 
+    X, 
+    Clock, 
+    AlertCircle, 
+    Copy, 
+    ShieldCheck,
+    CheckCircle
+} from 'lucide-react';
+
 
 const UploadPage = () => {
     const [files, setFiles] = useState([]);
@@ -13,9 +24,7 @@ const UploadPage = () => {
     const [uploadedLinks, setUploadedLinks] = useState([]);
     const [dragActive, setDragActive] = useState(false);
     const [error, setError] = useState('');
-    const [copiedLink, setCopiedLink] = useState(null);
     const fileInputRef = useRef(null);
-
 
     const formatFileSize = (bytes) => {
         if (bytes === 0) return '0 Bytes';
@@ -25,15 +34,11 @@ const UploadPage = () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    /**
-     * UPDATED: Validates file size and MIME type.
-     * Only allows types previewable in the browser.
-     */
     const validateFile = (file) => {
         const maxSize = 100 * 1024 * 1024; // 100MB
 
         if (file.size > maxSize) {
-            showToast(`File is too large. Max size is 100MB.`, 'error');
+            toast.error(`File is too large. Max size is 100MB.`);
             return false;
         }
 
@@ -42,7 +47,6 @@ const UploadPage = () => {
         const isPdf = fileType === 'application/pdf';
         const isText = fileType.startsWith('text/');
 
-        // Only allow files that can be previewed in ViewPage.jsx
         if (!isImage && !isPdf && !isText) {
             toast.error(`File type (${fileType || 'unknown'}) is not supported for in-browser preview.`);
             return false;
@@ -53,7 +57,6 @@ const UploadPage = () => {
 
     const handleFiles = useCallback((fileList) => {
         const newFiles = [];
-        // Only take the first file from the list
         const file = fileList[0];
         
         if (file && validateFile(file)) {
@@ -64,7 +67,6 @@ const UploadPage = () => {
                 size: formatFileSize(file.size),
             });
         }
-        // Replace the existing file list with the new single file
         setFiles(newFiles);
     }, []);
 
@@ -98,17 +100,20 @@ const UploadPage = () => {
     };
 
     const generateLink = async () => {
-        if (files.length === 0) return; // No file to upload
+        if (files.length === 0) return;
         
-        const fileToUpload = files[0]; // Get the single file
+        const fileToUpload = files[0];
+
+       if(expiryValue <= 0) {
+            toast.error("Expiry time cannot be zero or negative!")
+            return;
+        }
         
         setIsUploading(true);
         setError('');
 
-        const toastId = toast.loading("Checking storage..."); // Start loading toast
+        const toastId = toast.loading("Checking storage...");
         try {
-
-            // --- 1. NEW: PRE-FLIGHT CHECK ---
             const usage = await apiService.getRedisUsage();
 
             if (!usage.success) {
@@ -116,81 +121,69 @@ const UploadPage = () => {
             }
 
             if (fileToUpload.file.size > usage.available_bytes) {
-                const errorMessage = `Not enough storage for ${fileToUpload.name}. Required: ${formatFileSize(fileToUpload.file.size)}, Available: ${formatFileSize(usage.available_bytes)}`;
+                const errorMessage = `Not enough storage. Required: ${formatFileSize(fileToUpload.file.size)}, Available: ${formatFileSize(usage.available_bytes)}`;
                 toast.update(toastId, { render: errorMessage, type: "error", isLoading: false, autoClose: 5000 });
-                removeFile(fileToUpload.id); // Remove from list
-                setIsUploading(false); // Stop loading
-                return; // Stop this file's upload
+                removeFile(fileToUpload.id);
+                setIsUploading(false);
+                return;
             }
 
-            // 2. Encrypt the file in the browser using the handler
-           toast.update(toastId, { render: `Encrypting ${fileToUpload.name}...` });
+            toast.update(toastId, { render: `Encrypting ${fileToUpload.name}...` });
             const { encryptedBlob, base64Key } = await encryptFile(fileToUpload.file);
 
-            // 3. Upload the encrypted blob using your apiService
             toast.update(toastId, { render: `Uploading ${fileToUpload.name}...` });
             const result = await apiService.uploadFile(encryptedBlob, expiryValue, expiryUnit);
 
             if (result.success) {
-                // 4. Construct the frontend URL with the decryption key in the hash
                 const encodedFilename = encodeURIComponent(fileToUpload.name);
                 const frontendUrl = `${window.location.origin}/view/${result.fileId}#key=${base64Key}&filename=${encodedFilename}`;
-                console.log("Frontend url: ", frontendUrl);
                 
                 setUploadedLinks(prev => [...prev, {
                     id: fileToUpload.id,
                     link: frontendUrl,
-                    fileName: fileToUpload.name
+                    fileName: fileToUpload.name,
+                    copied: false // Add 'copied' state for UI
                 }]);
 
                 toast.update(toastId, { render: `Uploaded ${fileToUpload.name}!`, type: "success", isLoading: false, autoClose: 5000 });
-                setFiles([]); // Clear the file list
+                setFiles([]);
             } else {
                 setError(`Failed to upload ${fileToUpload.name}: ${result.error}`);
+                toast.update(toastId, { render: `Failed to upload ${fileToUpload.name}.`, type: "error", isLoading: false, autoClose: 5000 });
             }
         } catch (err) {
             console.error(err);
-            setError(`Failed to upload ${fileToUpload.name}. Encryption failed or network error.`);
-             toast.update(toastId, { render: `Failed to upload ${fileToUpload.name}.`, type: "error", isLoading: false, autoClose: 5000 });
+            const errorMsg = `Failed to upload ${fileToUpload.name}. Encryption failed or network error.`;
+            setError(errorMsg);
+            toast.update(toastId, { render: errorMsg, type: "error", isLoading: false, autoClose: 5000 });
         } finally {
             setIsUploading(false);
         }
     };
 
     const copyToClipboard = (link, fileId) => {
-        // Use a temporary textarea for broader compatibility
-        const textArea = document.createElement('textarea');
-        textArea.value = link;
-        document.body.appendChild(textArea);
-        textArea.select();
-        try {
-            document.execCommand('copy');
-            setUploadedLinks(prev => prev.map(l => l.id === fileId ? { ...l, copied: true } : l));
+        navigator.clipboard.writeText(link).then(() => {
+            setUploadedLinks(prev => prev.map(l => 
+                l.id === fileId ? { ...l, copied: true } : { ...l, copied: false }
+            ));
             setTimeout(() => {
-                setUploadedLinks(prev => prev.map(l => l.id === fileId ? { ...l, copied: false } : l));
-            }, 2000);
-        } catch (err) {
+                setUploadedLinks(prev => prev.map(l => 
+                    l.id === fileId ? { ...l, copied: false } : l
+                ));
+            }, 2500);
+        }).catch(err => {
             console.error('Failed to copy', err);
             toast.error('Failed to copy link.');
-        }
-        document.body.removeChild(textArea);
+        });
     };
 
-    const expiryOptions = [
-        { value: '1h', label: '1 Hour' }, { value: '6h', label: '6 Hours' },
-        { value: '12h', label: '12 Hours' }, { value: '24h', label: '1 Day' },
-        { value: '3d', label: '3 Days' }, { value: '7d', label: '1 Week' },
-        { value: '30d', label: '30 Days' }
-    ];
-
     return (
-        <div className="upload-page">
-            {/* --- Toast Container --- */}
+        <div className="min-h-screen p-4 bg-slate-900 text-slate-200 flex items-center justify-center -mt-[4.3rem] selection:bg-blue-500/30">
             <ToastContainer
                 position="top-right"
                 autoClose={5000}
                 hideProgressBar={false}
-                newestOnTop={false}
+                newestOnTop
                 closeOnClick
                 rtl={false}
                 pauseOnFocusLoss
@@ -198,82 +191,103 @@ const UploadPage = () => {
                 pauseOnHover
                 theme="dark"
             />
-            <div className="upload-container">
+            
+            <div className="w-full max-w-2xl mt-[5rem]">
                 <motion.div
-                    className="upload-card"
+                    className="bg-slate-800/70 backdrop-blur-md rounded-xl shadow-2xl p-6 md:p-10 border border-slate-700"
                     initial={{ opacity: 0, y: 50 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
+                    transition={{ duration: 0.6, type: "spring", stiffness: 100 }}
                 >
-                    <h1 className="upload-title">Upload & Share Securely</h1>
-                    <p className="upload-subtitle">Files are encrypted end-to-end in your browser.</p>
+                    <h1 className="text-3xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
+                        Upload & Share Securely
+                    </h1>
+                    <p className="text-center text-slate-400 mt-2 mb-6">
+                        Files are encrypted end-to-end in your browser.
+                    </p>
 
                     <div
-                        className={`upload-area ${dragActive ? 'dragover' : ''}`}
+                        className={`border-2 border-dashed border-slate-600 rounded-lg p-10 md:p-12 text-center cursor-pointer transition-all duration-300 ease-in-out
+                            ${dragActive ? 'border-solid border-blue-500 bg-blue-900/30 ring-2 ring-blue-500' 
+                                        : 'hover:border-blue-500 hover:bg-slate-700/50'}`
+                        }
                         onDragEnter={handleDrag} onDragLeave={handleDrag}
                         onDragOver={handleDrag} onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
                     >
-                        <Upload className="upload-icon" />
-                        <p className="upload-text">Drag and drop files here or click to browse</p>
-                        <p className="upload-hint">Supports any file type up to 100MB</p>
+                        <Upload className="mx-auto h-12 w-12 text-blue-400 mb-3" />
+                        <p className="text-slate-300 font-medium">
+                            Drag and drop a file or click to browse
+                        </p>
+                        <p className="text-slate-500 text-sm mt-1">
+                            Only previewable files (images, text, PDF) up to 100MB
+                        </p>
                         <input
-                            ref={fileInputRef} type="file" multiple
+                            ref={fileInputRef} type="file"
                             onChange={handleFileInput} style={{ display: 'none' }}
                         />
                     </div>
 
                     {error && (
                         <motion.div
-                            className="error-box"
+                            className="bg-red-900/50 border border-red-700 text-red-300 rounded-lg p-3 flex items-center gap-3 mt-4"
                             initial={{ opacity: 0, y: -10 }}
                             animate={{ opacity: 1, y: 0 }}
                         >
                             <AlertCircle size={20} />
-                            {error}
+                            <span>{error}</span>
                         </motion.div>
                     )}
 
                     {files.length > 0 && (
-                        <div className="file-list-container">
-                            <h3 className="list-title">Selected Files:</h3>
+                        <div className="mt-6 space-y-3">
+                            {/* We only allow one file, so this map will only run once */}
                             {files.map((file) => (
                                 <motion.div
-                                    key={file.id} className="file-item"
-                                    initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                                    key={file.id} 
+                                    className="bg-slate-700/50 rounded-lg p-3 flex items-center justify-between transition-all"
+                                    initial={{ opacity: 0, x: -20 }} 
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 20 }}
                                 >
-                                    <div className="file-details flex gap-3 items-center">
-                                        <File size={20} />
-                                        <div className='flex gap-3'>
-                                            <p className="file-name">{file.name}</p>
-                                            <p className="file-size">{file.size}</p>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <File className="h-6 w-6 text-blue-300 flex-shrink-0" />
+                                        <div className="flex flex-col min-w-0">
+                                            <p className="font-medium text-slate-100 truncate" title={file.name}>{file.name}</p>
+                                            <p className="text-sm text-slate-400">{file.size}</p>
                                         </div>
-                                        <button onClick={() => removeFile(file.id)} className="remove-file-btn">
-                                            <X size={20} />
-                                        </button>
                                     </div>
-                                    
+                                    <button 
+                                        onClick={() => removeFile(file.id)} 
+                                        className="text-slate-500 hover:text-red-400 transition-colors rounded-full p-1"
+                                        aria-label="Remove file"
+                                    >
+                                        <X size={20} />
+                                    </button>
                                 </motion.div>
                             ))}
                         </div>
                     )}
 
-                    {/* Expiry Time & Upload Button */}
                     {files.length > 0 && (
-                        <div className="my-3">
-                            <div className="flex gap-3 items-center">
-                                <div className='flex text-[16px] gap-1 items-center mb-1'>
-                                    <Clock size={16} />
-                                    <p>Link Expires in: </p>
-                                </div>
+                        <div className="mt-6 bg-slate-700/30 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className='flex items-center gap-2 text-slate-300 font-medium'>
+                                <Clock size={18} />
+                                <span>Link Expires in:</span>
+                            </div>
+                            <div className="flex gap-2">
                                 <input
-                                    type="text"
+                                    type="number"
                                     value={expiryValue}
                                     onChange={(e) => setExpiryValue(e.target.value)}
-                                    className="rounded-md text-center w-10 p-0.5 outline-blue-300 "
+                                    className="bg-slate-800 border border-slate-600 rounded-md p-2 w-20 text-center text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     min="1"
                                 />
-                                <select value={expiryUnit} onChange={(e) => setExpiryUnit(e.target.value)} className="rounded-md p-0.5 outline-blue-300">
+                                <select 
+                                    value={expiryUnit} 
+                                    onChange={(e) => setExpiryUnit(e.target.value)} 
+                                    className="bg-slate-800 border border-slate-600 rounded-md p-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
                                     <option value="minutes">Minutes</option>
                                     <option value="hours">Hours</option>
                                     <option value="days">Days</option>
@@ -284,50 +298,65 @@ const UploadPage = () => {
 
                     {files.length > 0 && (
                         <button
-                            className="upload-button"
-                            onClick={() => files.forEach(file => generateLink(file))}
+                            className="w-full mt-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold py-3 px-6 rounded-lg shadow-lg 
+                                       transition-all duration-300 ease-in-out transform 
+                                       hover:scale-[1.02] hover:shadow-blue-500/30
+                                       active:scale-[0.98]
+                                       disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 disabled:shadow-none"
+                            onClick={generateLink} // Changed this: it was looping, but you only upload one file
                             disabled={isUploading}
                         >
-                            {isUploading ? 'Uploading...' : `Upload ${files.length} File${files.length > 1 ? 's' : ''}`}
+                            {isUploading ? 'Uploading...' : 'Generate Secure Link'}
                         </button>
                     )}
 
                     {uploadedLinks.length > 0 && (
-                        <div className="links-container">
-                            <h3 className="list-title">Generated Links:</h3>
-                            {uploadedLinks.map(({ id, link, fileName }) => (
+                        <div className="mt-8 space-y-4">
+                            <h3 className="text-lg font-semibold text-slate-200">Generated Link:</h3>
+                            {uploadedLinks.map(({ id, link, fileName, copied }) => (
                                 <motion.div
-                                    key={id} className="link-result"
-                                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                                    key={id} 
+                                    className="bg-slate-800 border border-slate-700 rounded-lg p-4"
+                                    initial={{ opacity: 0, y: 20 }} 
+                                    animate={{ opacity: 1, y: 0 }}
                                 >
-                                    <div className="link-details">
-                                        <p className="link-filename">{fileName}</p>
-                                        <div className="flex gap-3 items-center">
-                                            <input type="text" readOnly value={link} className="link-text" />
-                                            <button className="copy-button flex gap-3 justify-center items-center" onClick={() => copyToClipboard(link, id)}>
-                                                {copiedLink === id ? <ShieldCheck size={16} /> : <Copy size={16} />}
-                                                {copiedLink === id ? 'Copied!' : 'Copy'}
-                                            </button>
-                                        </div>
+                                    <p className="font-medium text-slate-200 mb-2 truncate" title={fileName}>{fileName}</p>
+                                    <div className="flex flex-col sm:flex-row gap-3 items-center">
+                                        <input 
+                                            type="text" 
+                                            readOnly 
+                                            value={link} 
+                                            className="bg-slate-700/50 text-slate-300 rounded-md p-2 w-full truncate border border-slate-600 focus:outline-none" 
+                                        />
+                                        <button 
+                                            className={`font-medium py-2 px-4 rounded-md flex items-center justify-center gap-2 transition-all duration-200 w-full sm:w-auto flex-shrink-0
+                                                ${copied ? 'bg-green-600 text-white' 
+                                                        : 'bg-slate-600 hover:bg-slate-500 text-slate-200'}`
+                                            }
+                                            onClick={() => copyToClipboard(link, id)}
+                                        >
+                                            {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+                                            {copied ? 'Copied!' : 'Copy'}
+                                        </button>
                                     </div>
                                 </motion.div>
                             ))}
-                             <div className="warning-box">
-                                <AlertCircle size={32} />
+                             <div className="bg-yellow-900/50 border border-yellow-700 text-yellow-300 rounded-lg p-4 flex items-start gap-3 mt-6">
+                                <AlertCircle size={32} className="flex-shrink-0 mt-0.5" />
                                 <div>
-                                    <strong>Keep this link safe!</strong> It contains the decryption key. Without it, the file cannot be recovered. The link is valid for one view only.
+                                    <strong className="text-yellow-200">Keep this link safe!</strong> It contains the decryption key. Without it, the file cannot be recovered.
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    <div className="info-section">
-                        <h4>How it works:</h4>
-                        <ul>
-                            <li>• Your file is encrypted in your browser before upload.</li>
-                            <li>• Get a secure, one-time access link with the key.</li>
-                            <li>• The link expires after the first download or time limit.</li>
-                            <li>• Your encrypted files are permanently deleted from our servers after expiry.</li>
+                    <div className="mt-8 text-sm text-slate-400 border-t border-slate-700 pt-6">
+                        <h4 className="font-semibold text-slate-300 mb-2">How it works:</h4>
+                        <ul className="space-y-1 list-inside">
+                            <li className='flex gap-2 items-start'><span className='text-blue-400'>•</span>Your file is encrypted in your browser before upload.</li>
+                            <li className='flex gap-2 items-start'><span className='text-blue-400'>•</span>Get a secure, one-time access link with the key.</li>
+                            <li className='flex gap-2 items-start'><span className='text-blue-400'>•</span>The link expires after the first view or time limit.</li>
+                            <li className='flex gap-2 items-start'><span className='text-blue-400'>•</span>Your encrypted files are permanently deleted from our servers.</li>
                         </ul>
                     </div>
                 </motion.div>
