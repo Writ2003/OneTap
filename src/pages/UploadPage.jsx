@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import apiService from '../services/api';
 import { encryptFile } from '../utils/encryptionHandler';
 import { ToastContainer, toast } from 'react-toastify';
-
+import ClickSpark from '../components/ui/clickSpark';
 import { 
     Upload, 
     File, 
@@ -206,27 +206,35 @@ const UploadPage = () => {
                         Files are encrypted end-to-end in your browser.
                     </p>
 
-                    <div
-                        className={`border-2 border-dashed border-slate-600 rounded-lg p-10 md:p-12 text-center cursor-pointer transition-all duration-300 ease-in-out
-                            ${dragActive ? 'border-solid border-blue-500 bg-blue-900/30 ring-2 ring-blue-500' 
-                                        : 'hover:border-blue-500 hover:bg-slate-700/50'}`
-                        }
-                        onDragEnter={handleDrag} onDragLeave={handleDrag}
-                        onDragOver={handleDrag} onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
+                    <ClickSpark
+                      sparkColor='#fff'
+                      sparkSize={10}
+                      sparkRadius={15}
+                      sparkCount={8}
+                      duration={400}
                     >
-                        <Upload className="mx-auto h-12 w-12 text-blue-400 mb-3" />
-                        <p className="text-slate-300 font-medium">
-                            Drag and drop a file or click to browse
-                        </p>
-                        <p className="text-slate-500 text-sm mt-1">
-                            Only previewable files (images, text, PDF) up to 100MB
-                        </p>
-                        <input
-                            ref={fileInputRef} type="file"
-                            onChange={handleFileInput} style={{ display: 'none' }}
-                        />
-                    </div>
+                        <div
+                            className={`border-2 border-dashed border-slate-600 rounded-lg p-10 md:p-12 text-center cursor-pointer transition-all duration-300 ease-in-out
+                                ${dragActive ? 'border-solid border-blue-500 bg-blue-900/30 ring-2 ring-blue-500' 
+                                            : 'hover:border-blue-500 hover:bg-slate-700/50'}`
+                            }
+                            onDragEnter={handleDrag} onDragLeave={handleDrag}
+                            onDragOver={handleDrag} onDrop={handleDrop}
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <Upload className="mx-auto h-12 w-12 text-blue-400 mb-3" />
+                            <p className="text-slate-300 font-medium">
+                                Drag and drop a file or click to browse
+                            </p>
+                            <p className="text-slate-500 text-sm mt-1">
+                                Only previewable files (images, text, PDF) up to 100MB
+                            </p>
+                            <input
+                                ref={fileInputRef} type="file"
+                                onChange={handleFileInput} style={{ display: 'none' }}
+                            />
+                        </div>
+                    </ClickSpark>
 
                     {error && (
                         <motion.div
