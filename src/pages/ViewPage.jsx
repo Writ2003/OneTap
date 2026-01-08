@@ -5,7 +5,8 @@ import {
     Eye, 
     ArrowLeft, 
     XCircle, 
-    Loader2 // A dedicated loader icon
+    Loader2, // A dedicated loader icon
+    Maximize
 } from 'lucide-react';
 import apiService from '../services/api';
 import { decryptFile } from "../utils/encryptionHandler" 
@@ -128,6 +129,10 @@ const ViewPage = () => {
         }
     }, [fileId]);
 
+    const openFullPreview = () => {
+        if (decryptedFile?.url) window.open(decryptedFile.url, '_blank');
+    };
+
     const renderPreview = () => {
         if (!decryptedFile) return null;
 
@@ -137,7 +142,17 @@ const ViewPage = () => {
             return <img src={url} alt={filename} className="max-w-full max-h-[75vh] object-contain rounded-md" />;
         }
         if (type === 'application/pdf') {
-            return <embed src={url} type="application/pdf" className="w-full h-[75vh] border-none rounded-md" />;
+            return (
+                <div className="pdf-container">
+                    <embed src={url} type="application/pdf" className="preview-pdf" />
+                    <div className="mobile-pdf-notice">
+                        <p>Embedded PDF viewing is limited on mobile devices.</p>
+                        <button onClick={openFullPreview} className="mobile-btn">
+                            <Maximize size={18} /> Open Full Screen
+                        </button>
+                    </div>
+                </div>
+            );
         }
         if (type.startsWith('text/')) {
             return <pre className="bg-slate-800 text-slate-300 p-4 rounded-md w-full h-full text-left whitespace-pre-wrap break-words overflow-auto">{textContent}</pre>;
