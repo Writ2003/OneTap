@@ -227,62 +227,10 @@ const LandingPage = () => {
             </section>
 
             {/* Demo Section */}
-            <section id="demo" className="demo-section">
-                <div className="demo-container">
-                    <motion.h2
-                        className="section-title"
-                        initial={{ opacity: 0, y: 30 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, ease: "easeOut" }}
-                        viewport={{ once: true, margin: "-100px" }}
-                    >
-                        See It In Action
-                    </motion.h2>
-                    <motion.p
-                        style={{
-                            textAlign: 'center',
-                            color: 'white',
-                            fontSize: '1.1rem',
-                            marginBottom: '2rem',
-                            opacity: 0.9
-                        }}
-                        initial={{ opacity: 0 }}
-                        whileInView={{ opacity: 0.9 }}
-                        transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
-                        viewport={{ once: true, margin: "-50px" }}
-                    >
-                        Watch how easy it is to upload files and create secure sharing links
-                    </motion.p>
-                    <motion.div
-                        className="video-container"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-                        viewport={{ once: true, margin: "-100px" }}
-                    >
-                        <iframe
-                            src="https://www.youtube.com/embed/dQw4w9WgXcQ"
-                            title="SecureShare Demo"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                        ></iframe>
-                    </motion.div>
-                    <motion.div
-                        style={{ marginTop: '3rem', textAlign: 'center' }}
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
-                        viewport={{ once: true, margin: "-50px" }}
-                    >
-                        <Link to="/upload" className="cta-button">
-                            Try It Yourself
-                        </Link>
-                    </motion.div>
-                </div>
-            </section>
+            
 
             {/* How It Works Section */}
-            <section id="how-it-works" className="features-section">
+            {/*<section id="how-it-works" className="features-section">
                 <div className="features-container">
                     <motion.h2
                         className="section-title"
@@ -379,7 +327,7 @@ const LandingPage = () => {
                         ))}
                     </div>
                 </div>
-            </section>
+            </section>*/}
 
             {/*Testimonial Section*/}
             <section className=''>
